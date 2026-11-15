@@ -213,16 +213,11 @@ export async function fetchImapMessages(input: ImapImportInput): Promise<ImapFet
 		{ secureTransport: input.secure ? "on" : "off", allowHalfOpen: false },
 	);
 	const imap = new ImapConnection(socket);
-	let stage = "greeting"; // TEMP-DEBUG
 	try {
 		await imap.readGreeting();
-		stage = "login";
 		await imap.command(`LOGIN ${quoteImapString(input.username)} ${quoteImapString(input.password)}`);
-		stage = "examine";
 		await imap.command(`EXAMINE ${quoteImapString(input.folder)}`);
-		stage = "search";
 		const searchLines = await imap.command("UID SEARCH ALL");
-		stage = "fetch";
 		const batch = selectImapUidBatch(searchLines.flatMap(parseSearchUids), input.limit, input.offset);
 		const messages: ImportMessageInput[] = [];
 		const newestFirst = [...batch.uids].reverse();
@@ -240,7 +235,6 @@ export async function fetchImapMessages(input: ImapImportInput): Promise<ImapFet
 				});
 			}
 		}
-		stage = "logout";
 		await imap.command("LOGOUT").catch(() => undefined);
 		const complete = attempted === batch.uids.length;
 		return {
@@ -248,9 +242,6 @@ export async function fetchImapMessages(input: ImapImportInput): Promise<ImapFet
 			total: batch.total,
 			nextOffset: complete ? batch.nextOffset : Math.min(input.offset, batch.total) + attempted,
 		};
-	} catch (error) {
-		console.error("TEMP-DEBUG imap fetch failed", { stage, folder: input.folder, host: input.host, error: String(error) });
-		throw error;
 	} finally {
 		await imap.close();
 	}
